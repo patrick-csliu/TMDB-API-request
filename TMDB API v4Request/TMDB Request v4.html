@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>TMDB Request v4</title>
+        <script type="text/javascript" src="args.js"></script>
+        <style>
+            #url-C, #query-C, #contentarea, #querytemp-L, #urltemp-L, #query-L, #url-L{
+                width: 98%;
+            }
+            #tq-page{
+                width: 50px;
+            }
+            #tq-query{
+                width: 300px;
+            }
+            #response, .inputs{
+                width: 95%;
+            }
+            #response{
+                background-color: rgb(216, 216, 216);
+            }
+            pre{
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+            .inputs{
+                border-style: solid;
+            }
+        </style>
+    </head>
+    <body onload="onloadFunc()">
+        <div class="inputs">
+            <h2>Input</h2>
+            <select id="customize" onchange="modeChange()">
+                <option value="C">Customize</option>
+                <option value="L">Pull List</option>
+            </select>
+            <a href="https://developers.themoviedb.org/4" target="_blank">API Document</a><br>
+            <label for="access_token">access_token:</label>
+            <input type="text" id="access_token" value="">
+            <div id="Cdiv">
+                <h3>Request Url</h3>
+                <input type="text" id="url-C">
+                <h3>Query</h3>
+                <input type="text" id="query-C">
+                <input type="button" value="Encode" onclick="en_de_code_C()" id="en_de_code-C">
+            </div>
+            <div id="Ldiv" hidden>
+                <select id="pullList1" onchange="pullList1Change()"></select>
+                <select id="pullList2" onchange="pullList2Change()"></select>
+                <h3>Request Url</h3>
+                <input type="text" id="urltemp-L" readonly>
+                <input type="text" id="url-L"><br>
+                <label for="tu-1">arg:</label>
+                <input type="text" id="tu-1">
+                <h3>Query</h3>
+                <input type="text" id="querytemp-L" readonly>
+                <input type="text" id="query-L"><br>
+                <div id="querybox">
+                    <label for="tq-language">language:</label>
+                    <select id="tq-language">
+                        <option value=""></option>
+                        <option value="en-US">en-US</option>
+                        <option value="zh-TW">zh-TW</option>
+                    </select>
+                    <label for="tq-sort_by">sort_by:</label>
+                    <input type="text" id="tq-sort_by">
+                    <label for="tq-page">page:</label>
+                    <input type="text" id="tq-page">
+                    <label for="tq-api_key">api_key:</label>
+                    <select id="tq-api_key">
+                        <option value=""></option>
+                        <option value=""></option>
+                    </select>
+                    <label for="tq-media_type">media_type:</label>
+                    <input type="text" id="tq-media_type">
+                    <label for="tq-media_id">media_id:</label>
+                    <input type="text" id="tq-media_id">
+                </div>
+                <input type="button" value="Replace" onclick="replace()">
+                <input type="button" value="Encode" onclick="en_de_code_L()" id="en_de_code-L">
+            </div>
+            <h3>Content(POST)</h3>
+            <textarea id="contentarea"></textarea><br>
+            <select id="requestMethod">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+            </select>
+            <input type="button" value="Submit" id="send-C" onclick="send(requrl_C())">
+            <input type="button" value="Submit" id="send-L" onclick="send(requrl_L())">
+            <p id="requrl"></p>
+        </div>
+        <div>
+            <h2>Response</h2>
+            <p id="status"></p>
+            <input type="button" value="Pretty" onclick="Pretty()">
+            <input type="button" value="Download" onclick="download()">
+            <pre id="response"></pre>
+        </div>
+    </body>
+    <script>
+        var p1 = 0;//pull list 1 index
+        var p2 = 0;//pull list 2 index
+        const xhttp = new XMLHttpRequest();
+        function onloadFunc(){
+            document.getElementById("send-C").hidden = false;
+            document.getElementById("send-L").hidden = true;
+            document.getElementById("pullList1").innerHTML = generate_pullList(pull1);
+            document.getElementById("pullList2").innerHTML = generate_pullList(pull2[p1]);
+            pullListUpdate();
+        }
+        function modeChange(){
+            const v = document.getElementById("customize").value == "C";
+            document.getElementById("Cdiv").hidden = !v;
+            document.getElementById("Ldiv").hidden = v;
+            document.getElementById("send-C").hidden = !v;
+            document.getElementById("send-L").hidden = v
+            document.getElementById("response").textContent = "";
+            document.getElementById("status").textContent  = "";
+            document.getElementById("requrl").textContent = "";
+        }
+        function Pretty(){
+            var resobj = JSON.parse(xhttp.responseText);
+            document.getElementById("response").textContent = JSON.stringify(resobj, null, 4);
+        }
+        function downloadObjectAsJson(exportObj, exportName){
+            var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
+            var downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", exportName + ".json");
+            document.body.appendChild(downloadAnchorNode); // required for firefox
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+        function download(){
+            downloadObjectAsJson(JSON.parse(xhttp.responseText), "APIrequest");
+        }
+        const AuthorizationValue = "Bearer " + document.getElementById("access_token").value;
+        function GET(url){
+            xhttp.open("GET", url, true);
+            xhttp.setRequestHeader("Authorization", AuthorizationValue);
+            xhttp.send();
+        }
+        function POST(url){
+            const con = document.getElementById("contentarea").value;
+            xhttp.open("POST", url, true);
+            xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+            xhttp.setRequestHeader("Authorization", AuthorizationValue);
+            xhttp.send(con);
+        }
+        function PUT(url){
+            const con = document.getElementById("contentarea").value;
+            xhttp.open("PUT", url, true);
+            xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+            xhttp.setRequestHeader("Authorization", AuthorizationValue);
+            console.log(con);
+            xhttp.send(con);
+        }
+        function DELETE(url){
+            const con = document.getElementById("contentarea").value;
+            xhttp.open("DELETE", url, true);
+            xhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+            xhttp.setRequestHeader("Authorization", AuthorizationValue);
+            xhttp.send(con);
+        }
+        //Customize
+        function send(url){
+            document.getElementById("requrl").textContent = url;
+            xhttp.onload = function() {
+                document.getElementById("response").textContent = this.responseText;
+                document.getElementById("status").textContent  = "Status: " + xhttp.status + ", " + xhttp.getAllResponseHeaders();
+            }
+            if(document.getElementById("requestMethod").value=="GET"){
+                console.log("GET request");
+                GET(url);
+            } else if(document.getElementById("requestMethod").value=="POST") {
+                console.log("POST request");
+                POST(url);
+            } else if(document.getElementById("requestMethod").value=="PUT") {
+                console.log("PUT request");
+                PUT(url);
+            } else if(document.getElementById("requestMethod").value=="DELETE") {
+                console.log("DELETE request");
+                DELETE(url);
+            } else {
+                console.log("send function error!")
+            }
+        }
+        function requrl_C(){
+            var url = document.getElementById("url-C").value;
+            var query = document.getElementById("query-C").value;
+            return "https://api.themoviedb.org/4" + url + "?" + query;
+        }
+        function en_de_code_C(){
+            if(document.getElementById("en_de_code-C").value == "Encode"){
+                document.getElementById("query-C").value = encodeURI(document.getElementById("query-C").value);
+                document.getElementById("en_de_code-C").value = "Decode";
+            }else{
+                document.getElementById("query-C").value = decodeURI(document.getElementById("query-C").value);
+                document.getElementById("en_de_code-C").value = "Encode";
+            }
+        }
+        //Pull List
+        function pullListUpdate(){
+            const queryarg = queryList[p1][p2];
+            document.getElementById("urltemp-L").value = urlList[p1][p2];//url Update
+            document.getElementById("querytemp-L").value = queryarg;//query Update
+            const nodeL = document.getElementById("querybox").children;
+            for(var i=0;i<nodeL.length;i++){
+                nodeL[i].hidden = true;
+            }
+
+            for(var i=0;i<queryarg.length;i++){
+                const k = queryarg[i].slice(1, -1);
+                document.getElementById("tq-" + k).hidden = false;
+                document.querySelectorAll('[for="tq-' + k + '"]')[0].hidden = false;
+            }
+            document.getElementById("requestMethod").value = requestMethod[p1][p2];
+        }
+        function pullList1Change(){
+            p1 = parseInt(document.getElementById("pullList1").value);
+            document.getElementById("pullList2").innerHTML = generate_pullList(pull2[p1]);
+            p2 = 0;
+            pullListUpdate();
+        }
+        function pullList2Change(){
+            p2 = parseInt(document.getElementById("pullList2").value);
+            pullListUpdate();
+        }
+        function template(pattern, newValue, Str){
+            return Str.replace(pattern, newValue);
+        }
+        function replace(){
+            //url
+            var url = urlList[p1][p2];
+            for(var i=1;i<=1;i++){
+                url = template(/\{\w*\}/, document.getElementById("tu-"+i).value, url);
+            }
+            //query
+            const queryarg = queryList[p1][p2];
+            var query = "";
+            for(var i=0;i<queryarg.length;i++){
+                const k = queryarg[i].slice(1, -1);
+                const v = document.getElementById("tq-" + k).value;
+                if(v != ""){
+                    query += k + "=" + v + "&";
+                }
+            }
+            //show
+            document.getElementById("url-L").value = url;
+            document.getElementById("query-L").value = query;
+        }
+        function requrl_L(){
+            var url = document.getElementById("url-L").value;
+            var query = document.getElementById("query-L").value;
+            return "https://api.themoviedb.org/4" + url + "?" + query;
+        }
+        function en_de_code_L(){
+            if(document.getElementById("en_de_code-L").value == "Encode"){
+                document.getElementById("query-L").value = encodeURI(document.getElementById("query-L").value);
+                document.getElementById("en_de_code-L").value = "Decode";
+            }else{
+                document.getElementById("query-L").value = decodeURI(document.getElementById("query-L").value);
+                document.getElementById("en_de_code-L").value = "Encode";
+            }
+        }
+    </script>
+</html>
